@@ -1,0 +1,185 @@
+-- PART A
+rollback;
+set search_path to online_learning_db, public;
+
+revoke all privileges on all tables in schema online_learning_db from online_learning_db_admin, online_learning_db_readonly;
+revoke all privileges on all sequences in schema online_learning_db from online_learning_db_admin, online_learning_db_readonly;
+revoke all privileges on schema online_learning_db from online_learning_db_admin, online_learning_db_readonly;
+
+drop owned by online_learning_db_admin cascade;
+drop owned by online_learning_db_readonly cascade;
+
+drop user if exists db_admin_user;
+drop user if exists db_reader_user;
+drop role if exists online_learning_db_admin;
+drop role if exists online_learning_db_readonly;
+
+create role online_learning_db_admin;
+create role online_learning_db_readonly;
+
+grant usage on schema online_learning_db to online_learning_db_admin;
+grant usage on schema online_learning_db to online_learning_db_readonly;
+
+grant all privileges on all tables in schema online_learning_db to online_learning_db_admin;
+grant select on all tables in schema online_learning_db to online_learning_db_readonly;
+
+create user db_admin_user with password 'admin123';
+grant online_learning_db_admin to db_admin_user;
+
+create user db_reader_user with password 'reader123';
+grant online_learning_db_readonly to db_reader_user;
+
+revoke update, delete on all tables in schema online_learning_db from online_learning_db_readonly;
+
+/* \dp online_learning_db.users
+Schema             | Name  | Type  | Access privileges                     | Column privileges | Policies
+-------------------+-------+-------+---------------------------------------+-------------------+---------
+online_learning_db | users | table | online_learning_db_admin=arwd/postgres|                   |
+                   |       |       | online_learning_db_readonly=r/postgres|                   |
+*/
+
+set search_path to online_learning_db, public;
+
+set role db_admin_user;
+select current_user;
+select count(*) from users;
+
+begin;
+insert into users (first_name, last_name, email, gender) values ('ChiefAdmin', 'Local', 'chief.adm@edu-net.org', 'M');
+rollback;
+
+begin;
+update users set first_name = first_name;
+rollback;
+
+begin;
+delete from users where user_id = (select max(user_id) from users);
+rollback;
+
+reset role;
+
+set role db_reader_user;
+select current_user;
+select count(*) from users;
+
+begin;
+insert into users (first_name, last_name, email, gender) values ('Auditor', 'External', 'audit.user@edu-net.org', 'F');
+rollback;
+-- ERROR:  permission denied for table users
+
+begin;
+update users set first_name = first_name;
+rollback;
+-- ERROR:  permission denied for table users
+
+begin;
+delete from users where user_id = 1;
+rollback;
+-- ERROR:  permission denied for table users
+
+reset role;
+
+-- PART B
+truncate table 
+    feedback, 
+    certifications, 
+    learning_progress, 
+    assessments, 
+    enrollments, 
+    lessons, 
+    courses, 
+    instructors, 
+    users 
+restart identity cascade;
+
+insert into instructors (full_name, expertise, bio) values 
+('Guido van Rossum', 'Python & SQL', 'Creator of the Python programming language.'),
+('Linus Torvalds', 'Data Science', 'Architect of Linux kernel and Git version control.'),
+('Dan Abramov', 'Frontend Frameworks', 'Co-author of Redux and prominent React core team member.'),
+('Martin Fowler', 'Web Development', 'Software engineer, author and speaker on software architecture.'),
+('Fei-Fei Li', 'Artificial Intelligence', 'Stanford professor and pioneer in computer vision research.');
+
+insert into users (first_name, last_name, email, gender, registration_date) values 
+('Alex', 'Mazzoli', 'alex.m@edu-net.org', 'M', '2026-01-05'),
+('Sophia', 'Loren', 'sophia.l@edu-net.org', 'F', '2026-01-12'),
+('Marcus', 'Aurelius', 'marcus.a@edu-net.org', 'M', '2026-01-28'),
+('Olivia', 'Wild', 'olivia.w@edu-net.org', 'F', '2026-02-04'),
+('Nathan', 'Drake', 'nathan.d@edu-net.org', 'M', '2026-02-19');
+
+insert into courses (instructor_id, title, description, price) values 
+((select instructor_id from instructors where full_name = 'Guido van Rossum'), 'Backend Mastery', 'Advanced patterns in enterprise development', 55.00),
+((select instructor_id from instructors where full_name = 'Linus Torvalds'), 'Git and OS Architecture', 'Understanding systems from the ground up', 45.00),
+((select instructor_id from instructors where full_name = 'Dan Abramov'), 'Modern State Management', 'Deep dive into asynchronous frontend patterns', 35.00),
+((select instructor_id from instructors where full_name = 'Fei-Fei Li'), 'Neural Networks Core', 'Comprehensive introduction to modern architectures', 0.00),
+((select instructor_id from instructors where full_name = 'Martin Fowler'), 'Enterprise Design', 'Patterns of enterprise application software', 75.00);
+
+insert into lessons (course_id, title, content_url, duration_minutes) values 
+((select course_id from courses where title = 'Backend Mastery'), 'Database Normalization', 'https://cdn.edu-net.org/vids/db_norm_v2', 30),
+((select course_id FROM courses where title = 'Git and OS Architecture'), 'Kernel Space vs User Space', 'https://cdn.edu-net.org/vids/os_kernel_v2', 40),
+((select course_id from courses where title = 'Modern State Management'), 'Thinking in React', 'https://cdn.edu-net.org/vids/react_think_v2', 20),
+((select course_id from courses where title = 'Neural Networks Core'), 'Backpropagation Math', 'https://cdn.edu-net.org/vids/math_backprop_v2', 60),
+((select course_id from courses where title = 'Enterprise Design'), 'Domain Driven Layouts', 'https://cdn.edu-net.org/vids/ddd_intro_v2', 45);
+
+insert into enrollments (user_id, course_id, enrollment_date, progress_percent, status) values 
+((select user_id from users where email = 'alex.m@edu-net.org'), (select course_id from courses where title = 'Backend Mastery'), '2026-01-06', 40.00, 'Active'),
+((select user_id from users where email = 'sophia.l@edu-net.org'), (select course_id from courses where title = 'Git and OS Architecture'), '2026-01-15', 100.00, 'Completed'),
+((select user_id from users where email = 'marcus.a@edu-net.org'), (select course_id from courses where title = 'Modern State Management'), '2026-01-30', 12.50, 'Active'),
+((select user_id from users where email = 'olivia.w@edu-net.org'), (select course_id from courses where title = 'Neural Networks Core'), '2026-02-05', 0.00, 'Dropped'),
+((select user_id from users where email = 'nathan.d@edu-net.org'), (select course_id from courses where title = 'Enterprise Design'), '2026-02-20', 80.00, 'Active');
+
+insert into assessments (course_id, title, max_score) values 
+((select course_id from courses where title = 'Backend Mastery'), 'Relational Schema Design', 100),
+((select course_id from courses where title = 'Git and OS Architecture'), 'CLI Git Conflict Challenge', 50),
+((select course_id from courses where title = 'Modern State Management'), 'Custom Hooks Logic Test', 30),
+((select course_id from courses where title = 'Neural Networks Core'), 'Matrix Multiplication Quiz', 100),
+((select course_id from courses where title = 'Enterprise Design'), 'Refactoring Case Study', 100);
+
+insert into learning_progress (user_id, lesson_id, is_completed, completion_date) values 
+((select user_id from users where email = 'alex.m@edu-net.org'), (select lesson_id from lessons where title = 'Database Normalization'), true, '2026-01-10 14:22:00'),
+((select user_id from users where email = 'sophia.l@edu-net.org'), (select lesson_id from lessons where title = 'Kernel Space vs User Space'), true, '2026-01-22 19:10:00'),
+((select user_id from users where email = 'marcus.a@edu-net.org'), (select lesson_id from lessons where title = 'Thinking in React'), false, null),
+((select user_id from users where email = 'olivia.w@edu-net.org'), (select lesson_id from lessons where title = 'Backpropagation Math'), false, null),
+((select user_id from users where email = 'nathan.d@edu-net.org'), (select lesson_id from lessons where title = 'Domain Driven Layouts'), true, '2026-03-01 10:05:00');
+
+insert into certifications (user_id, course_id, issue_date) values 
+((select user_id from users where email = 'sophia.l@edu-net.org'), (select course_id from courses where title = 'Git and OS Architecture'), '2026-01-22'),
+((select user_id from users where email = 'alex.m@edu-net.org'), (select course_id from courses where title = 'Backend Mastery'), '2026-05-11'),
+((select user_id from users where email = 'nathan.d@edu-net.org'), (select course_id from courses where title = 'Enterprise Design'), '2026-05-14'),
+((select user_id from users where email = 'marcus.a@edu-net.org'), (select course_id from courses where title = 'Modern State Management'), '2026-05-19'),
+((select user_id from users where email = 'sophia.l@edu-net.org'), (select course_id from courses where title = 'Enterprise Design'), '2026-05-24');
+
+insert into feedback (user_id, course_id, rating, comment, feedback_date) values 
+((select user_id from users where email = 'alex.m@edu-net.org'), (select course_id from courses where title = 'Backend Mastery'), 5, 'Perfect layout, very structured assignment tasks.', '2026-01-12'),
+((select user_id from users where email = 'sophia.l@edu-net.org'), (select course_id from courses where title = 'Git and OS Architecture'), 5, 'Hardcore level explanation, loved the practical tasks.', '2026-01-25'),
+((select user_id from users where email = 'marcus.a@edu-net.org'), (select course_id from courses where title = 'Modern State Management'), 4, 'Good course but requires solid foundational knowledge.', '2026-02-05'),
+((select user_id from users where email = 'olivia.w@edu-net.org'), (select course_id from courses where title = 'Neural Networks Core'), 2, 'Too much mathematics without code examples.', '2026-03-02'),
+((select user_id from users where email = 'nathan.d@edu-net.org'), (select course_id from courses where title = 'Enterprise Design'), 5, 'Helped me restructure our real architecture at work.', '2026-04-10');
+
+-- Business reason: Backend Mastery price was adjusted to align with our seasonal spring promotion strategy.
+select price from courses where title = 'Backend Mastery';
+update courses 
+set price = 49.99 
+where title = 'Backend Mastery';
+
+-- Business reason: User requested contact details update due to corporate email profile migration.
+select email from users where email = 'alex.m@edu-net.org';
+update users 
+set email = 'alex.mazzoli.work@edu-net.org' 
+where email = 'alex.m@edu-net.org';
+
+-- Business reason: Applied standard annual inflation multiplier to all courses managed by Data Science faculty.
+select c.title, c.price, i.full_name from courses c join instructors i on c.instructor_id = i.instructor_id where i.expertise = 'Data Science';
+update courses c
+set price = round(c.price * 1.15, 2)
+from instructors i
+where c.instructor_id = i.instructor_id 
+and i.expertise = 'Data Science';
+
+-- Business reason: Cleaned up analytical dashboards by removing empty student records who dropped out instantly.
+begin;
+delete from enrollments 
+where status = 'Dropped' 
+and progress_percent = 0;
+select count(*) from enrollments;
+-- 4
+rollback;
